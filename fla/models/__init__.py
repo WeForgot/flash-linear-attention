@@ -5,6 +5,8 @@
 # For a list of all contributors, visit:
 #   https://github.com/fla-org/flash-linear-attention/graphs/contributors
 
+from transformers.modeling_utils import PreTrainedModel as _PreTrainedModel
+
 from fla.models.abc import ABCConfig, ABCForCausalLM, ABCModel
 from fla.models.bitnet import BitNetConfig, BitNetForCausalLM, BitNetModel
 from fla.models.cat import CATConfig, CATForCausalLM, CATModel
@@ -54,6 +56,7 @@ from fla.models.rwkv7 import RWKV7Config, RWKV7ForCausalLM, RWKV7Model
 from fla.models.samba import SambaConfig, SambaForCausalLM, SambaModel
 from fla.models.transformer import TransformerConfig, TransformerForCausalLM, TransformerModel
 from fla.models.wall_transformer import WallTransformerConfig, WallTransformerForCausalLM, WallTransformerModel
+from fla.models.window import apply_window_schedule, install_window_schedule_hook
 from fla.models.yoco import YOCOConfig, YOCOForCausalLM, YOCOModel
 
 __all__ = [
@@ -171,4 +174,16 @@ __all__ = [
     'YOCOConfig',
     'YOCOForCausalLM',
     'YOCOModel',
+    'apply_window_schedule',
 ]
+
+# Teach every FLA model to accept a per-layer sliding-window schedule on its
+# config, without any of them having to know about it. `install_window_schedule_hook`
+# wraps `post_init`, which each model calls at the end of `__init__` (and hence
+# on the `from_pretrained` path too); the wrapper is a no-op unless the config's
+# `window_size` is a sequence or a {layer_idx: window_size} mapping. See
+# `fla/models/window.py` for why a post-construction pass is sufficient.
+install_window_schedule_hook(*(
+    _obj for _obj in tuple(globals().values())
+    if isinstance(_obj, type) and issubclass(_obj, _PreTrainedModel)
+))

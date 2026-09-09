@@ -455,6 +455,40 @@ To use different attention settings at different depths, pass a list of specific
 
 Each specification is normalized independently. Layers omitted from the plan retain the model's native linear-attention, recurrent, or state-space mixer.
 
+#### Per-layer sliding windows on non-hybrid models
+
+Models that are attention all the way down (`Transformer`, `MLA`, `MoBA`, `NSA`, `BitNet`,
+`Parallax`, `ForgettingTransformer`, `WallTransformer`, ...) take a single top-level
+`window_size`. That field also accepts a *schedule*, so the window can vary with depth
+without a per-model change:
+
+```py
+>>> # one entry per layer
+>>> config = TransformerConfig(num_hidden_layers=6, window_size=[512, 512, 1024, 1024, 2048, None])
+>>> # or only the layers you want to change, the rest keep their default
+>>> config = TransformerConfig(num_hidden_layers=6, window_size={4: 2048, 5: None})
+>>> model = AutoModelForCausalLM.from_config(config)
+```
+
+`None` in any position means full causal attention at that layer. A plain integer keeps the
+old uniform behaviour, and the schedule is stored in `config.json`, so it round-trips through
+`save_pretrained`/`from_pretrained`.
+
+The same schedule can be applied to an already-built model — including hybrid ones, where a
+list is matched against the attention layers in depth order:
+
+```py
+>>> from fla import apply_window_schedule
+>>> config = GLAConfig(num_hidden_layers=8, attn={'layers': [1, 4, 7], 'num_heads': 4})
+>>> model = AutoModelForCausalLM.from_config(config)
+>>> apply_window_schedule(model, [256, 1024, None])   # layer 1, 4 and 7 respectively
+```
+
+This works without any per-module support because every attention layer in `fla` stores its
+window as `self.window_size` and reads it during `forward` (the KV cache is told the window
+per call, per layer), so assigning it after construction is equivalent to having built the
+layer with it. See `fla/models/window.py`.
+
 During inference, you **DO NOT** need to revise anything for generation!
 The model will produce output as-is, without any need for additional configurations or modifications.
 
