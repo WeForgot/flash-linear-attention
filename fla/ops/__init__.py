@@ -23,6 +23,7 @@ from .gla import chunk_gla, fused_chunk_gla, fused_recurrent_gla
 from .gsa import chunk_gsa, fused_recurrent_gsa
 from .hgrn import fused_recurrent_hgrn
 from .kda import chunk_kda, fused_recurrent_kda
+from .lact import chunk_lact_swiglu, fused_chunk_lact_swiglu
 from .lightning_attn import chunk_lightning_attn, fused_recurrent_lightning_attn
 from .linear_attn import chunk_linear_attn, fused_chunk_linear_attn, fused_recurrent_linear_attn
 from .log_linear_attn import chunk_log_linear_attn
@@ -53,6 +54,7 @@ __all__ = [
     'chunk_gsa',
     'chunk_iplr_delta_rule',
     'chunk_kda',
+    'chunk_lact_swiglu',
     'chunk_lightning_attn',
     'chunk_linear_attn',
     'chunk_log_linear_attn',
@@ -68,6 +70,7 @@ __all__ = [
     'fused_chunk_based',
     'fused_chunk_delta_rule',
     'fused_chunk_gla',
+    'fused_chunk_lact_swiglu',
     'fused_chunk_linear_attn',
     'fused_chunk_retention',
     'fused_chunk_simple_gla',
