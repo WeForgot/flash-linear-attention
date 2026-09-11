@@ -202,6 +202,8 @@ class LaCT(nn.Module):
         fw_init_gain: float = 0.5,
         use_fused_kernel: bool = False,
         fp32_states: bool = False,
+        use_attn_sink: bool = False,
+        sink_bias_init: float = 0.,
         **kwargs,
     ) -> LaCT:
         super().__init__()
@@ -243,6 +245,17 @@ class LaCT(nn.Module):
             self.k_norm = RMSNorm(self.hidden_size)
 
         self.o_proj = nn.Linear(self.hidden_size, self.hidden_size, bias=False)
+
+        if use_attn_sink:
+            # GPT-OSS-style attention sink: one learnable logit per query head, joining the softmax
+            # denominator without contributing a value. It matters more with a hard window than in
+            # full attention, because the early tokens a softmax normally parks surplus mass on are
+            # evicted. `parallel_attn` scales this by RCP_LN2 itself (fla/ops/attn/parallel.py:736),
+            # so it is a natural-log logit on the same footing as a score.
+            self.sink_bias = nn.Parameter(torch.full((num_heads,), float(sink_bias_init)))
+            self.sink_bias._no_weight_decay = True
+        else:
+            self.register_parameter('sink_bias', None)
         self.rotary = RotaryEmbedding(dim=self.head_dim, base=self.rope_theta)
 
         # ---- fast weights ----
@@ -412,11 +425,13 @@ class LaCT(nn.Module):
             max_seqlen_q, max_seqlen_k = max_seq_lens
             if max_seqlen_q != max_seqlen_k:
                 # single-token decode; the cache above is already truncated to the window
-                o = attn_decoding_one_step(q, k, v, cu_seqlens=cu_seqlens_k)
+                o = attn_decoding_one_step(q, k, v, cu_seqlens=cu_seqlens_k,
+                                           sink_bias=self.sink_bias)
             else:
-                o = parallel_attn(q, k, v, window_size=self.window_size, cu_seqlens=cu_seqlens_k)
+                o = parallel_attn(q, k, v, window_size=self.window_size, cu_seqlens=cu_seqlens_k,
+                                  sink_bias=self.sink_bias)
         else:
-            o = parallel_attn(q, k, v, window_size=self.window_size)
+            o = parallel_attn(q, k, v, window_size=self.window_size, sink_bias=self.sink_bias)
         if indices_q is not None:
             o = pad_input(o.squeeze(0), indices_q, batch_size, q_len)
         o = o.reshape(batch_size, q_len, -1)
