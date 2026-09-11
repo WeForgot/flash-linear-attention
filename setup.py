@@ -12,13 +12,13 @@ from pathlib import Path
 
 from setuptools import find_packages, setup
 
-with open('README.md') as f:
+with open('README.md', encoding='utf-8') as f:
     long_description = f.read()
 
 
 def get_package_version():
     init_file = Path(os.path.dirname(os.path.abspath(__file__))) / 'fla' / '__init__.py'
-    with open(init_file) as f:
+    with open(init_file, encoding='utf-8') as f:
         version_match = re.search(r"^__version__\s*=\s*(.*)$", f.read(), re.MULTILINE)
     if version_match is None:
         raise RuntimeError(f"Could not find `__version__` in the file {init_file}")
