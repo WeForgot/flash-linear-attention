@@ -308,8 +308,10 @@ class LaCT(nn.Module):
 
     def _rescale_qk(self, q: torch.Tensor, k: torch.Tensor):
         """Per-channel affine that forks the fast-weight q/k away from the attention q/k."""
-        qk_scale = self.qk_scale.view(1, 1, -1, 2)
-        qk_offset = self.qk_offset.view(1, 1, -1, 2)
+        # autocast leaves mul/add operands alone, so fp32 params here would promote bf16
+        # activations back to fp32 and the fused kernel would reject them
+        qk_scale = self.qk_scale.view(1, 1, -1, 2).to(q.dtype)
+        qk_offset = self.qk_offset.view(1, 1, -1, 2).to(q.dtype)
         q = q * qk_scale[:, :, :, 0] + qk_offset[:, :, :, 0]
         k = k * qk_scale[:, :, :, 1] + qk_offset[:, :, :, 1]
         return q, k
